@@ -1,0 +1,8 @@
+# Package directories
+node_modules
+
+# Serverless directories
+.serverless
+
+# Private db config file
+config.js

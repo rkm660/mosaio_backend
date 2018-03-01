@@ -1,0 +1,55 @@
+service: mosaio-backend
+
+
+provider:
+  name: aws
+  runtime: nodejs6.10
+  timeout: 300
+
+
+plugins:
+  - serverless-offline
+
+
+functions:
+  getMosaic:
+    handler: handler.getMosaic
+    events:
+      - http:
+          path: mosaic/{mosaicID}
+          method: get
+          cors: true
+
+
+  validate:
+    handler: handler.validate
+    timeout: 30
+    events:
+      - http:
+          path: validate
+          method: post
+          cors: true
+
+
+  create:
+    handler: handler.create
+    timeout: 30 
+    events:
+      - http:
+          path: create
+          method: post
+          cors: true
+
+
+  assemble:
+    handler: handler.assemble
+    timeout: 300
+    events:
+      - http:
+          path: assemble
+          method: post
+          cors: true
+
+
+
+  
