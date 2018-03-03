@@ -30,6 +30,7 @@ module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg'
             mosaicObject["mosaicMatrix"] = null;
             mosaicObject["inputImg"] = inputImg;
             mosaicObject["inputURL"] = inputURL;
+            mosaicObject["timestampCreated"] = Date.now();
 
             utils.getColorData(mosaicObject["inputImg"], size).then((pixelDict) => {
                 mosaicObject["resizedPixelDict"] = pixelDict;

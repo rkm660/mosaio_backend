@@ -10,7 +10,8 @@ let MosaicSchema = new mongoose.Schema({
     resizedPixelDict: Object,
     mosaicMatrix: Object,
     status: String,
-    progress: Number
+    progress: Number,
+    timestampCreated: Date
 });
 
 module.exports = mongoose.model('Mosaic', MosaicSchema);
