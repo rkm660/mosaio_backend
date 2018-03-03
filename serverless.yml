@@ -5,10 +5,16 @@ provider:
   name: aws
   runtime: nodejs6.10
   timeout: 300
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "states:StartExecution"
+      Resource: "arn:aws:states:us-east-1:915961610259:stateMachine:createMosaic"
 
 
 plugins:
   - serverless-offline
+  - serverless-step-functions
 
 
 functions:
@@ -23,7 +29,6 @@ functions:
 
   validate:
     handler: handler.validate
-    timeout: 30
     events:
       - http:
           path: validate
@@ -33,7 +38,6 @@ functions:
 
   create:
     handler: handler.create
-    timeout: 30 
     events:
       - http:
           path: create
@@ -41,15 +45,37 @@ functions:
           cors: true
 
 
-  assemble:
-    handler: handler.assemble
-    timeout: 300
+  init:
+    handler: handler.init
     events:
       - http:
-          path: assemble
+          path: init
           method: post
           cors: true
 
 
-
+  assemble1:
+    handler: handler.assemble1
+    timeout: 300
   
+
+  assemble2:
+    handler: handler.assemble2
+    timeout: 300
+
+
+  assemble3:
+    handler: handler.assemble3
+    timeout: 300
+
+
+  assemble4:
+    handler: handler.assemble4
+    timeout: 300
+
+
+  assemble5:
+    handler: handler.assemble5
+    timeout: 300
+
+

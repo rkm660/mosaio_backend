@@ -1,18 +1,21 @@
+'use strict';
+
 const fs = require('fs');
 const Mosaic = require("../models/Mosaic.js");
 const Photo = require('../models/Photo.js');
 const config = require('../config.js')
 const utils = require('../utils.js');
 const Jimp = require("jimp");
+const mongoose = require('mongoose');
+
+mongoose.Promise = global.Promise;
 
 module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg', size = 125) => {
     let mosaicObject = {};
 
-    return new Promise(function(resolve, reject) {
-        let id = utils.guid();
-
-        Jimp.read(inputImg).then(function(image) {
-
+    return new Promise(function(resolve, reject){
+        Jimp.read(inputImg).then(function(image){
+            console.log("read image");
             mosaicObject["originalWidth"] = image.bitmap.width;
             mosaicObject["originalHeight"] = image.bitmap.height;
 
@@ -22,7 +25,7 @@ module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg'
             mosaicObject["resizedWidth"] = resizedImage.bitmap.width;
             mosaicObject["resizedHeight"] = resizedImage.bitmap.height;
 
-            mosaicObject["status"] = "pending";
+            mosaicObject["status"] = "uninitiated";
             mosaicObject["progress"] = 0.00;
             mosaicObject["mosaicMatrix"] = null;
             mosaicObject["inputImg"] = inputImg;
@@ -33,7 +36,7 @@ module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg'
                 resolve(mosaicObject);
             });
 
-        }).catch(function(readErr) {
+        }).catch(function(readErr){
             reject(new Error(readErr));
         });
     });
@@ -41,11 +44,11 @@ module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg'
 
 module.exports.createExternalMosaicObject = (obj) => {
     // create DB record
-    return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject){
         let MosaicObject = new Mosaic(obj);
-        Mosaic.insertMany([MosaicObject]).then(function(docs) {
+        Mosaic.insertMany([MosaicObject]).then((docs) => {
             resolve(docs[0]);
-        }).catch(function(err) {
+        }).catch((err) => {
             reject(new Error(err));
         });
     })
@@ -55,8 +58,9 @@ module.exports.createExternalMosaicObject = (obj) => {
 module.exports.updateExternalMosaicObject = (ID, updatedMatrix, status, progress) => {
 
     // update DB record
-    return new Promise(function(resolve, reject) {
-        Mosaic.findOneAndUpdate({ _id: ID }, { mosaicMatrix: updatedMatrix, status: status, progress: progress }, { new: true }, function(err, updatedMosaic) {
+    return new Promise(function(resolve, reject){
+        Mosaic.findOneAndUpdate({ _id: ID }, { mosaicMatrix: updatedMatrix, status: status, progress: progress }, { new: true }, (err, updatedMosaic) =>
+         {
             if (err) {
                 reject(new Error(err));
             } else {
@@ -68,8 +72,8 @@ module.exports.updateExternalMosaicObject = (ID, updatedMatrix, status, progress
 }
 
 module.exports.findClosestBelow = (h, s, l, limit) => {
-    return new Promise(function(resolve, reject) {
-        Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: -1 }).limit(limit).exec(function(err, docs) {
+    return new Promise(function(resolve, reject){
+        Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: -1 }).limit(limit).exec((err, docs) => {
             if (err) {
                 reject(new Error(err));
             }
@@ -83,8 +87,8 @@ module.exports.findClosestBelow = (h, s, l, limit) => {
 }
 
 module.exports.findClosestAbove = (h, s, l, limit) => {
-    return new Promise(function(resolve, reject) {
-        Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: 1 }).limit(limit).exec(function(err, docs) {
+    return new Promise(function(resolve, reject){
+        Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: 1 }).limit(limit).exec((err, docs) => {
             if (err) {
                 reject(new Error(err));
             }
@@ -102,8 +106,8 @@ module.exports.findClosestOne = (h, s, l, limit, y, x) => {
     let minDistance = Infinity;
     let closestDoc = null;
 
-    return new Promise(function(resolve, reject) {
-        module.exports.findClosestBelow(h, s, l, limit).then(function(closestDocsBelow) {
+    return new Promise((resolve, reject) => {
+        module.exports.findClosestBelow(h, s, l, limit).then((closestDocsBelow) => {
             closestDocsBelow.forEach((doc) => {
                 let currentDistance = Math.sqrt((doc["medH"] - h) * (doc["medH"] - h) + (doc["medS"] - s) * (doc["medS"] - s) + (doc["medL"] - l) * (doc["medL"] - l));
                 if (currentDistance < minDistance) {
@@ -112,7 +116,7 @@ module.exports.findClosestOne = (h, s, l, limit, y, x) => {
                 }
             })
             return module.exports.findClosestAbove(h, s, l, limit);
-        }).then(function(closestDocsBelow) {
+        }).then((closestDocsBelow) => {
             closestDocsBelow.forEach((doc) => {
                 let currentDistance = Math.sqrt((doc["medH"] - h) * (doc["medH"] - h) + (doc["medS"] - s) * (doc["medS"] - s) + (doc["medL"] - l) * (doc["medL"] - l));
                 if (currentDistance < minDistance) {
@@ -125,18 +129,17 @@ module.exports.findClosestOne = (h, s, l, limit, y, x) => {
     })
 }
 
-module.exports.findClosestAll = (db, mongoID, pixelDict, y, n, height, mosaicMatrix) => {
-    return new Promise(function(resolve, reject) {
+module.exports.findClosestAll = (mongoID, pixelDict, y, upper, height, mosaicMatrix) => {
+    return new Promise((resolve, reject) => {
         if (y >= height) {
             module.exports.updateExternalMosaicObject(mongoID, mosaicMatrix, 'complete', (y / height * 100).toFixed(2)).then((updatedMongoObj) => {
-                db.close();
                 resolve(mosaicMatrix);
             }).catch((err) => {
                 reject(new Error(err));
             });
-        } else if (y >= n) {
+        } else if (y >= upper) {
             module.exports.updateExternalMosaicObject(mongoID, mosaicMatrix, 'pending', (y / height * 100).toFixed(2)).then((updatedMongoObj) => {
-                db.close();
+                console.log("done");
                 resolve(mosaicMatrix);
             }).catch((err) => {
                 reject(new Error(err));
@@ -146,8 +149,8 @@ module.exports.findClosestAll = (db, mongoID, pixelDict, y, n, height, mosaicMat
             for (let x in pixelDict[y]) {
                 promiseArray.push(module.exports.findClosestOne(pixelDict[y][x]["h"], pixelDict[y][x]["s"], pixelDict[y][x]["l"], 50, y, x));
             }
-            Promise.all(promiseArray).then(function(results) {
-                results.forEach(function(result) {
+            Promise.all(promiseArray).then((results) => {
+                results.forEach((result) => {
                     mosaicMatrix[result["y"]][result["x"]] = {
                         "_id": result["_id"],
                         "previewSrc": result["previewSrc"],
@@ -157,7 +160,7 @@ module.exports.findClosestAll = (db, mongoID, pixelDict, y, n, height, mosaicMat
                     };
                 })
                 module.exports.updateExternalMosaicObject(mongoID, null, 'pending', (y / height * 100).toFixed(2)).then((updatedMongoObj) => {
-                    resolve(module.exports.findClosestAll(db, mongoID, pixelDict, y + 1, n, height, mosaicMatrix));
+                    resolve(module.exports.findClosestAll(mongoID, pixelDict, y + 1, upper, height, mosaicMatrix));
                 }).catch((err) => {
                     reject(new Error(err));
                 });
@@ -168,11 +171,12 @@ module.exports.findClosestAll = (db, mongoID, pixelDict, y, n, height, mosaicMat
     });
 }
 
+
 module.exports.validateInputURL = (rawURL) => {
 
     let result = { "inputImg": null, "inputURL": null, "error": null };
 
-    return new Promise(function(resolve, reject) {
+    return new Promise((resolve, reject) => {
         if (rawURL.indexOf("instagram.com/p/") == -1) {
             result["error"] = "Please make sure the URL is in the following format: https://www.instagram.com/p/XXXXXXXXXXX/"
             resolve(result);
@@ -201,9 +205,9 @@ module.exports.validateInputURL = (rawURL) => {
     });
 };
 
-module.exports.checkDuplicateMosaic = (img) => {
-    return new Promise(function(resolve, reject) {
-        Mosaic.findOne({ inputImg: img }, function(err, mosaic) {
+module.exports.checkDuplicateMosaic = (url) => {
+    return new Promise((resolve, reject) => {
+        Mosaic.findOne({ inputURL: url }, (err, mosaic) => {
             if (err)
                 reject(new Error(err));
             resolve(mosaic);
@@ -211,9 +215,9 @@ module.exports.checkDuplicateMosaic = (img) => {
     });
 };
 
-module.exports.getMosaicByID = function(mosaicID) {
-    return new Promise(function(resolve, reject) {
-        Mosaic.findById(mosaicID, function(err, mosaic) {
+module.exports.getMosaicByID = (mosaicID) => {
+    return new Promise((resolve, reject) => {
+        Mosaic.findById(mosaicID, (err, mosaic) => {
             if (err)
                 reject(new Error(err));
             resolve(mosaic);

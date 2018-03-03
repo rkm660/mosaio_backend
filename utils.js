@@ -1,3 +1,5 @@
+'use strict';
+
 const math = require("mathjs")
 const request = require('request')
 const Promise = require("bluebird");
@@ -17,15 +19,15 @@ module.exports.createValidResponse = (body) => ({
 module.exports.createErrorResponse = (statusCode, message) => ({
     statusCode: statusCode || 501,
     headers: {
-        "Access-Control-Allow-Origin": "*", // Required for CORS support to work
-        "Access-Control-Allow-Credentials": true // Required for cookies, authorization headers with HTTPS
+        "Access-Control-Allow-Origin": "*", 
+        "Access-Control-Allow-Credentials": true
     },
     body: message || 'Incorrect ID',
 });
 
 module.exports.requestPage = (url) => {
-    return new Promise(function(resolve, reject) {
-        request(url, function(error, response, body) {
+    return new Promise(function(resolve, reject){
+        request(url, (error, response, body) => {
             if (error) {
                 return reject(new Error(error));
             }
@@ -35,7 +37,7 @@ module.exports.requestPage = (url) => {
 }
 
 module.exports.guid = () => {
-    function s4() {
+    let s4 = () => {
         return Math.floor((1 + Math.random()) * 0x10000)
             .toString(16)
             .substring(1);
@@ -121,8 +123,8 @@ module.exports.getColorData = (image_url, size) => {
 
     let pixelDict = {};
 
-    return new Promise(function(resolve, reject) {
-        Jimp.read(image_url, function(err, image) {
+    return new Promise(function(resolve, reject){
+        Jimp.read(image_url, function(err, image){
             if (err) {
                 resolve(pixelDict);
             } else {
@@ -140,7 +142,7 @@ module.exports.getColorData = (image_url, size) => {
                         }
                     }
                     
-                    resizedImage.scan(0, 0, resizedImage.bitmap.width, resizedImage.bitmap.height, function(x, y, idx) {
+                    resizedImage.scan(0, 0, resizedImage.bitmap.width, resizedImage.bitmap.height, function(x, y, idx){
                         var red = this.bitmap.data[idx + 0];
                         var green = this.bitmap.data[idx + 1];
                         var blue = this.bitmap.data[idx + 2];
