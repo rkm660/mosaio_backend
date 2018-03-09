@@ -60,7 +60,6 @@ module.exports.createExternalMosaicObject = (obj) => {
     })
 };
 
-
 module.exports.updateExternalMosaicObject = (ID, obj) => {
 
     // update DB record
@@ -81,11 +80,12 @@ module.exports.findClosestBelow = (h, s, l, limit) => {
         Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: -1 }).limit(limit).exec((err, docs) => {
             if (err) {
                 reject(new Error(err));
-            }
-            if (docs === null) {
-                resolve(null)
             } else {
-                resolve(docs);
+                if (docs === null) {
+                    resolve(null)
+                } else {
+                    resolve(docs);
+                }
             }
         });
     })
@@ -96,11 +96,12 @@ module.exports.findClosestAbove = (h, s, l, limit) => {
         Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: 1 }).limit(limit).exec((err, docs) => {
             if (err) {
                 reject(new Error(err));
-            }
-            if (docs === null) {
-                resolve(null)
             } else {
-                resolve(docs);
+                if (docs === null) {
+                    resolve(null)
+                } else {
+                    resolve(docs);
+                }
             }
         });
     })
@@ -130,6 +131,8 @@ module.exports.findClosestOne = (h, s, l, limit, y, x) => {
                 }
             })
             resolve(Object.assign(closestDoc, { "x": x, "y": y }));
+        }).catch((err) => {
+            reject(new Error(err));
         });
     })
 }
@@ -219,6 +222,8 @@ module.exports.init = (mosaicID) => {
                     }
                 })
             }
+        }).catch((err) => {
+            reject(new Error(err));
         });
     })
 }

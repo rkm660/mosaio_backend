@@ -168,7 +168,7 @@ module.exports.assemble = (event, context, callback) => {
                 db.close();
             }).catch((err) => {
                 console.log(err);
-                callback(e, utils.createErrorResponse(501, "Error in assemble."));
+                callback(null, utils.createErrorResponse(501, "Error in assemble."));
                 db.close();
             });
         });
@@ -184,7 +184,7 @@ module.exports.getPhotos = (event, context, callback) => {
     try {
         body = JSON.parse(event.body);
         if (!body.photoIDs) {
-            callback(null, utils.createErrorResponse(400, "Request must contain array."));
+            callback(null, utils.createErrorResponse(400, "Request must contain array of photoIDs."));
         }
     } catch (e) {
         callback(null, utils.createErrorResponse(501, "Error parsing request."));
@@ -194,6 +194,9 @@ module.exports.getPhotos = (event, context, callback) => {
         // start mosaic creation process
         main.getPhotosByID(body.photoIDs).then((photos) => {
             callback(null, utils.createValidResponse(photos));
+            db.close();
+        }).catch((err) => {
+            callback(null, utils.createErrorResponse(501, "Error in getPhotos."));
             db.close();
         });
     });
