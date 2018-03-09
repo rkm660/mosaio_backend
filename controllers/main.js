@@ -7,14 +7,18 @@ const config = require('../config.js')
 const utils = require('../utils.js');
 const Jimp = require("jimp");
 const mongoose = require('mongoose');
+const utf8 = require('utf8');
+const AWS = require('aws-sdk');
+
+let stepFunctions = new AWS.StepFunctions();
 
 mongoose.Promise = global.Promise;
 
 module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg', size = 125) => {
     let mosaicObject = {};
 
-    return new Promise(function(resolve, reject){
-        Jimp.read(inputImg).then(function(image){
+    return new Promise(function(resolve, reject) {
+        Jimp.read(inputImg).then(function(image) {
             console.log("read image");
             mosaicObject["originalWidth"] = image.bitmap.width;
             mosaicObject["originalHeight"] = image.bitmap.height;
@@ -25,19 +29,20 @@ module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg'
             mosaicObject["resizedWidth"] = resizedImage.bitmap.width;
             mosaicObject["resizedHeight"] = resizedImage.bitmap.height;
 
-            mosaicObject["status"] = "uninitiated";
+            mosaicObject["status"] = "queued";
             mosaicObject["progress"] = 0.00;
             mosaicObject["mosaicMatrix"] = null;
             mosaicObject["inputImg"] = inputImg;
             mosaicObject["inputURL"] = inputURL;
-            mosaicObject["timestampCreated"] = Date.now();
+            mosaicObject["timestampQueued"] = Date.now();
+            mosaicObject["mosaicMatrix"] = utils.createEmptyMatrix(mosaicObject['resizedWidth'], mosaicObject['resizedHeight']);
 
             utils.getColorData(mosaicObject["inputImg"], size).then((pixelDict) => {
                 mosaicObject["resizedPixelDict"] = pixelDict;
                 resolve(mosaicObject);
             });
 
-        }).catch(function(readErr){
+        }).catch(function(readErr) {
             reject(new Error(readErr));
         });
     });
@@ -45,7 +50,7 @@ module.exports.createLocalMosaicObject = (inputImg, inputURL, extension = '.jpg'
 
 module.exports.createExternalMosaicObject = (obj) => {
     // create DB record
-    return new Promise(function(resolve, reject){
+    return new Promise(function(resolve, reject) {
         let MosaicObject = new Mosaic(obj);
         Mosaic.insertMany([MosaicObject]).then((docs) => {
             resolve(docs[0]);
@@ -56,24 +61,23 @@ module.exports.createExternalMosaicObject = (obj) => {
 };
 
 
-module.exports.updateExternalMosaicObject = (ID, updatedMatrix, status, progress) => {
+module.exports.updateExternalMosaicObject = (ID, obj) => {
 
     // update DB record
-    return new Promise(function(resolve, reject){
-        Mosaic.findOneAndUpdate({ _id: ID }, { mosaicMatrix: updatedMatrix, status: status, progress: progress }, { new: true }, (err, updatedMosaic) =>
-         {
+    return new Promise(function(resolve, reject) {
+        Mosaic.findOneAndUpdate({ _id: ID }, { '$set': obj }, { new: true }, (err, updatedMosaic) => {
             if (err) {
                 reject(new Error(err));
             } else {
                 console.log(updatedMosaic["status"], updatedMosaic["progress"]);
-                resolve(updatedMosaic);
+                resolve(true);
             }
         });
     });
 }
 
 module.exports.findClosestBelow = (h, s, l, limit) => {
-    return new Promise(function(resolve, reject){
+    return new Promise(function(resolve, reject) {
         Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: -1 }).limit(limit).exec((err, docs) => {
             if (err) {
                 reject(new Error(err));
@@ -88,7 +92,7 @@ module.exports.findClosestBelow = (h, s, l, limit) => {
 }
 
 module.exports.findClosestAbove = (h, s, l, limit) => {
-    return new Promise(function(resolve, reject){
+    return new Promise(function(resolve, reject) {
         Photo.find({ medH: { $lte: h }, stdDev: { $lte: .2 } }).sort({ medH: 1 }).limit(limit).exec((err, docs) => {
             if (err) {
                 reject(new Error(err));
@@ -130,18 +134,16 @@ module.exports.findClosestOne = (h, s, l, limit, y, x) => {
     })
 }
 
-module.exports.findClosestAll = (mongoID, pixelDict, y, upper, height, mosaicMatrix) => {
+module.exports.findClosestAll = (mongoID, pixelDict, y, height, slice) => {
     return new Promise((resolve, reject) => {
         if (y >= height) {
-            module.exports.updateExternalMosaicObject(mongoID, mosaicMatrix, 'complete', (y / height * 100).toFixed(2)).then((updatedMongoObj) => {
-                resolve(mosaicMatrix);
-            }).catch((err) => {
-                reject(new Error(err));
-            });
-        } else if (y >= upper) {
-            module.exports.updateExternalMosaicObject(mongoID, mosaicMatrix, 'pending', (y / height * 100).toFixed(2)).then((updatedMongoObj) => {
-                console.log("done");
-                resolve(mosaicMatrix);
+            module.exports.updateExternalMosaicObject(mongoID, {
+                ["mosaicMatrix." + y.toString()]: slice[y],
+                status: 'complete',
+                timestampFinished: Date.now(),
+                progress: (y / height * 100).toFixed(2)
+            }).then((updatedMongoObj) => {
+                resolve(true);
             }).catch((err) => {
                 reject(new Error(err));
             });
@@ -152,16 +154,20 @@ module.exports.findClosestAll = (mongoID, pixelDict, y, upper, height, mosaicMat
             }
             Promise.all(promiseArray).then((results) => {
                 results.forEach((result) => {
-                    mosaicMatrix[result["y"]][result["x"]] = {
-                        "_id": result["_id"],
-                        "previewSrc": result["previewSrc"],
-                        "thumbnailSrc": result["thumbnailSrc"],
-                        "originalURL": result["originalURL"],
-                        "userName": result["userName"]
-                    };
+                    slice[result["y"]][result["x"]] = { "_id": result["_id"], "src": result["thumbnailSrc"] };
+                    /*,
+                     "previewSrc": result["previewSrc"],
+                     "thumbnailSrc": result["thumbnailSrc"],
+                     "originalURL": result["originalURL"],
+                     "userName": result["userName"]*/
+
                 })
-                module.exports.updateExternalMosaicObject(mongoID, null, 'pending', (y / height * 100).toFixed(2)).then((updatedMongoObj) => {
-                    resolve(module.exports.findClosestAll(mongoID, pixelDict, y + 1, upper, height, mosaicMatrix));
+                module.exports.updateExternalMosaicObject(mongoID, {
+                    ["mosaicMatrix." + y.toString()]: slice[y],
+                    status: 'pending',
+                    progress: (y / height * 100).toFixed(2)
+                }).then((updatedMongoObj) => {
+                    resolve(true);
                 }).catch((err) => {
                     reject(new Error(err));
                 });
@@ -171,6 +177,52 @@ module.exports.findClosestAll = (mongoID, pixelDict, y, upper, height, mosaicMat
         }
     });
 }
+
+module.exports.init = (mosaicID) => {
+    return new Promise(function(resolve, reject) {
+        // start mosaic creation process
+        module.exports.getMosaicByID(mosaicID, { status: 1, resizedPixelDict: 1 }).then((mosaicObject) => {
+            // mosaic exists and is completely assembled
+            if (mosaicObject && mosaicObject['status'] == 'complete') {
+                resolve({ message: 'Mosaic is already created.' });
+            } else if (mosaicObject && mosaicObject['status'] == 'pending') {
+                resolve({ message: 'Mosaic is already being created.' });
+            } else {
+
+                let height = Object.keys(mosaicObject['resizedPixelDict']).length;
+
+                // prepare input for execution obj
+                let filteredInput = utf8.encode(JSON.stringify({
+                    _id: mosaicID,
+                    iterator: {
+                        index: -1,
+                        step: 1,
+                        height: height,
+                    }
+                }));
+
+                const params = {
+                    stateMachineArn: config.createMosaicStepFunctionURI,
+                    input: filteredInput
+                }
+
+                // begin mosaic execution thread
+                stepFunctions.startExecution(params, (err, data) => {
+                    if (err) {
+                        reject(new Error(err));
+                    } else {
+                        module.exports.updateExternalMosaicObject(mosaicID, { status: 'pending', timestampInitialized: Date.now() }).then((updatedMongoObj) => {
+                            resolve({ message: 'Mosaic creation initialized.' });
+                        }).catch((err) => {
+                            reject(new Error(err));
+                        });
+                    }
+                })
+            }
+        });
+    })
+}
+
 
 
 module.exports.validateInputURL = (rawURL) => {
@@ -216,12 +268,52 @@ module.exports.checkDuplicateMosaic = (url) => {
     });
 };
 
-module.exports.getMosaicByID = (mosaicID) => {
-    return new Promise((resolve, reject) => {
-        Mosaic.findById(mosaicID, (err, mosaic) => {
+module.exports.countPendingMosaics = () => {
+    return new Promise(function(resolve, reject) {
+        Mosaic.find({ status: 'pending' }, function(err, mosaics) {
+            if (err)
+                reject(new Error(err));
+            resolve(mosaics.length);
+        });
+    })
+}
+
+module.exports.getQueuedMosaics = (difference) => {
+    return new Promise(function(resolve, reject) {
+        Mosaic.find({ status: 'queued' }).sort({ timestampCreated: -1 }).limit(difference).exec((err, docs) => {
+            if (err || !docs) {
+                reject(new Error(err));
+            } else {
+                resolve(docs);
+            }
+        });
+    })
+}
+
+module.exports.getMosaicByID = (mosaicID, fields = {}) => {
+    return new Promise(function(resolve, reject) {
+        Mosaic.findById(mosaicID, fields, function(err, mosaic) {
             if (err)
                 reject(new Error(err));
             resolve(mosaic);
+        });
+    })
+};
+
+
+module.exports.getPhotosByID = (photoIDs) => {
+
+    let idMap = photoIDs.map((id) => { return mongoose.Types.ObjectId(id) })
+
+    return new Promise(function(resolve, reject) {
+        Photo.find({
+            '_id': {
+                $in: idMap
+            }
+        }, function(err, docs) {
+            if (err)
+                reject(new Error(err));
+            resolve(docs);
         });
     })
 };

@@ -4,6 +4,7 @@ service: mosaio-backend
 provider:
   name: aws
   runtime: nodejs6.10
+  memorySize: 3008
   timeout: 300
   iamRoleStatements:
     - Effect: "Allow"
@@ -18,17 +19,39 @@ plugins:
 
 
 functions:
-  getMosaic:
-    handler: handler.getMosaic
+  dequeue:
+    handler: handler.dequeue
+    events:
+      - schedule: rate(1 minute)
+
+
+  iterator: 
+    handler: handler.iterator
+
+    
+  getPhotos:
+    handler: handler.getPhotos
+    memorySize: 3008
     events:
       - http:
-          path: mosaic/{mosaicID}
-          method: get
+          path: getPhotos
+          method: post
+          cors: true
+
+
+  getMosaicPartial:
+    handler: handler.getMosaicPartial
+    memorySize: 3008
+    events:
+      - http:
+          path: getMosaicPartial
+          method: post
           cors: true
 
 
   validate:
     handler: handler.validate
+    memorySize: 3008
     events:
       - http:
           path: validate
@@ -38,6 +61,7 @@ functions:
 
   create:
     handler: handler.create
+    memorySize: 3008
     events:
       - http:
           path: create
@@ -47,6 +71,7 @@ functions:
 
   init:
     handler: handler.init
+    memorySize: 3008
     events:
       - http:
           path: init
@@ -54,28 +79,8 @@ functions:
           cors: true
 
 
-  assemble1:
-    handler: handler.assemble1
+  assemble:
+    handler: handler.assemble
+    memorySize: 3008
     timeout: 300
   
-
-  assemble2:
-    handler: handler.assemble2
-    timeout: 300
-
-
-  assemble3:
-    handler: handler.assemble3
-    timeout: 300
-
-
-  assemble4:
-    handler: handler.assemble4
-    timeout: 300
-
-
-  assemble5:
-    handler: handler.assemble5
-    timeout: 300
-
-

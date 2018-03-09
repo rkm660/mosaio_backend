@@ -1,7 +1,7 @@
 {
   "name": "mosaio_backend",
   "version": "1.0.0",
-  "description": "The backend API for mosa.io",
+  "description": "The backend application for mosa.io",
   "main": "handler.js",
   "author": "Rahul Matta <rahulmatta01@gmail.com>",
   "license": "MIT",

@@ -11,7 +11,9 @@ let MosaicSchema = new mongoose.Schema({
     mosaicMatrix: Object,
     status: String,
     progress: Number,
-    timestampCreated: Date
+    timestampQueued: Date,
+    timestampInitialized: Date,
+    timestampFinished: Date
 });
 
 module.exports = mongoose.model('Mosaic', MosaicSchema);

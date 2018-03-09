@@ -19,14 +19,14 @@ module.exports.createValidResponse = (body) => ({
 module.exports.createErrorResponse = (statusCode, message) => ({
     statusCode: statusCode || 501,
     headers: {
-        "Access-Control-Allow-Origin": "*", 
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Credentials": true
     },
-    body: message || 'Incorrect ID',
+    body: message || 'Ambiguous error.',
 });
 
 module.exports.requestPage = (url) => {
-    return new Promise(function(resolve, reject){
+    return new Promise(function(resolve, reject) {
         request(url, (error, response, body) => {
             if (error) {
                 return reject(new Error(error));
@@ -119,12 +119,20 @@ module.exports.createEmptyMatrix = (width, height) => {
     return resultMatrix;
 }
 
+module.exports.getDictionarySlice = (dict, start, end) => {
+    let slice = {};
+    for (let i = start; i < end; i++) {
+        slice[i] = dict[i];
+    }
+    return slice;
+}
+
 module.exports.getColorData = (image_url, size) => {
 
     let pixelDict = {};
 
-    return new Promise(function(resolve, reject){
-        Jimp.read(image_url, function(err, image){
+    return new Promise(function(resolve, reject) {
+        Jimp.read(image_url, function(err, image) {
             if (err) {
                 resolve(pixelDict);
             } else {
@@ -141,8 +149,8 @@ module.exports.getColorData = (image_url, size) => {
                             pixelDict[h][w] = {};
                         }
                     }
-                    
-                    resizedImage.scan(0, 0, resizedImage.bitmap.width, resizedImage.bitmap.height, function(x, y, idx){
+
+                    resizedImage.scan(0, 0, resizedImage.bitmap.width, resizedImage.bitmap.height, function(x, y, idx) {
                         var red = this.bitmap.data[idx + 0];
                         var green = this.bitmap.data[idx + 1];
                         var blue = this.bitmap.data[idx + 2];
